@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>გლობალური უსაფრთხოების კამერა (ოპტიმიზებული)</title>
+    <title>გლობალური უსაფრთხოების კამერა (ქართული ხმით)</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
@@ -83,7 +83,6 @@
         .back-btn { background: #64748b; color: white; padding: 10px 20px; font-size: 0.95rem; margin-top: 20px; }
         .back-btn:hover { background: #475569; }
         
-        /* სპეციალური აქტივაციის ღილაკი ხმისთვის */
         .activate-audio-btn {
             background: #d97706;
             color: white;
@@ -203,10 +202,9 @@
     let mainLoopTimeout = null;
     let streamTrack = null;
 
-    // გაუმჯობესებული მგრძნობელობა მოძრაობისთვის (მაგ. ადგომა)
     let lastPersonCenter = null; 
     let wasPersonIdentified = false;
-    const MOTION_THRESHOLD = 20; // 35-დან ჩამოვიდა 20-მდე (ბევრად მგრძნობიარეა წამოდგომაზე)
+    const MOTION_THRESHOLD = 20; 
 
     let isSubAlarmActive = false;
     let subAlarmInterval = null;
@@ -228,10 +226,10 @@
         success: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>`
     };
 
-    // ხმის განბლოკვის ფუნქცია
     function unlockAudioSystem() {
-        const utterance = new SpeechSynthesisUtterance("System activated");
-        utterance.volume = 0; // უხმო ტესტი ბრაუზერის ნებართვის მისაღებად
+        const utterance = new SpeechSynthesisUtterance("ტესტი");
+        utterance.lang = "ka-GE";
+        utterance.volume = 0; 
         window.speechSynthesis.speak(utterance);
         audioUnlockBtn.classList.add('hidden');
     }
@@ -256,7 +254,7 @@
         } else {
             roleTitle.innerText = "რეჟიმი: სხვა მოწყობილობა (მონიტორინგი)";
             subHint.classList.remove('hidden');
-            audioUnlockBtn.classList.remove('hidden'); // ვაჩვენებთ ხმის აქტივაციის ღილაკს
+            audioUnlockBtn.classList.remove('hidden'); 
             liveImage.classList.remove('hidden');
             statusPanel.innerHTML = `${svgIcons.scan} მიმდინარეობს ლაივ სტრიმთან დაკავშირება...`;
             startMonitoring();
@@ -320,15 +318,14 @@
                 if (lastPersonCenter) {
                     const distance = Math.sqrt(Math.pow(currentCenter.x - lastPersonCenter.x, 2) + Math.pow(currentCenter.y - lastPersonCenter.y, 2));
 
-                    // თუ მოძრაობა (ადგომა/გაწევა) დაფიქსირდა
                     if (distance > MOTION_THRESHOLD) {
                         strokeColor = '#ef4444';
-                        statusMessage = `${svgIcons.alert} მოძრაობა! STOP! STAY CALM`;
+                        statusMessage = `${svgIcons.alert} მოძრაობა! გთხოვთ არ წამოდგეთ!`;
                         panelClass = 'danger';
 
-                        bodyNode.classList.add('main-alarm'); // ეკრანის გაწითლება
+                        bodyNode.classList.add('main-alarm'); 
                         db.ref('stream/alarm').set(true);
-                        triggerLocalMainVoice();
+                        triggerKaMainVoice(); // ქართული ხმის გამოძახება
                     } else {
                         db.ref('stream/alarm').set(false);
                         bodyNode.classList.remove('main-alarm');
@@ -353,7 +350,7 @@
                     db.ref('stream/lostAlarm').set(true);
                     statusPanel.className = 'status-panel danger';
                     statusPanel.innerHTML = `${svgIcons.alert} კრიტიკული განგაში: ობიექტი გაქრა!`;
-                    triggerVoiceAlert("Target lost, return to camera!", 1.0, 0.9);
+                    triggerKaVoiceAlert("ობიექტი გაქრა, დაუბრუნდით კამერას");
                 } else {
                     statusPanel.className = 'status-panel';
                     statusPanel.innerHTML = `${svgIcons.success} დაცვა აქტიურია - ადამიანი არ ჩანს`;
@@ -361,21 +358,23 @@
             }
         } catch (err) { console.error(err); }
 
-        mainLoopTimeout = setTimeout(detectAndStreamLoop, 100); // 100მს უფრო სწრაფი ანალიზისთვის
+        mainLoopTimeout = setTimeout(detectAndStreamLoop, 100); 
     }
 
-    function triggerLocalMainVoice() {
-        const utterance = new SpeechSynthesisUtterance("Stop, stay calm");
-        utterance.lang = "en-US";
+    // ქართული ხმა ძირითად მოწყობილობაზე (მომენტალური რეაგირება)
+    function triggerKaMainVoice() {
+        const utterance = new SpeechSynthesisUtterance("გთხოვთ არ წამოდგეთ, დარჩით საწოლში");
+        utterance.lang = "ka-GE";
         utterance.rate = 1.0;
         window.speechSynthesis.speak(utterance);
     }
 
-    function triggerVoiceAlert(text, rate, pitch) {
+    function triggerKaVoiceAlert(text) {
         if (isSpeaking) return;
         isSpeaking = true;
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = "en-US"; utterance.rate = rate; utterance.pitch = pitch;
+        utterance.lang = "ka-GE"; 
+        utterance.rate = 1.0;
         utterance.onend = () => { setTimeout(() => { isSpeaking = false; }, 1500); };
         window.speechSynthesis.speak(utterance);
     }
@@ -397,7 +396,7 @@
     function handleAlarmUpdate(snapshot) {
         if (currentRole !== 'sub') return;
         if (snapshot.val() === true) {
-            startSubContinuousAlarm();
+            startSubContinuousKaAlarm();
         }
     }
 
@@ -413,23 +412,22 @@
         }
     }
 
-    // უწყვეტი განგაში და წითელი ციმციმი მონიტორზე
-    function startSubContinuousAlarm() {
+    // უწყვეტი ქართული განგაში და ციმციმი მონიტორზე
+    function startSubContinuousKaAlarm() {
         if (isSubAlarmActive) return;
         isSubAlarmActive = true;
 
         statusPanel.className = "status-panel danger";
         statusPanel.innerHTML = `${svgIcons.alert} განგაში! მოძრაობა დაფიქსირდა!`;
-        bodyNode.classList.add('sub-flashing'); // წითელი ციმციმის ჩართვა
+        bodyNode.classList.add('sub-flashing'); 
 
-        // განგაშის უწყვეტი ხმა ყოველ 800 მილიწამში
+        // განგაშის უწყვეტი ქართული ხმა ყოველ 1 წამში
         subAlarmInterval = setInterval(() => {
-            const utterance = new SpeechSynthesisUtterance("Warning");
-            utterance.lang = "en-US";
-            utterance.rate = 1.1;
-            utterance.pitch = 1.2;
+            const utterance = new SpeechSynthesisUtterance("გაფრთხილება");
+            utterance.lang = "ka-GE";
+            utterance.rate = 1.0;
             window.speechSynthesis.speak(utterance);
-        }, 800); 
+        }, 1000); 
     }
 
     function stopSubContinuousAlarm() {
@@ -438,7 +436,7 @@
         
         clearInterval(subAlarmInterval);
         subAlarmInterval = null;
-        window.speechSynthesis.cancel(); // აჩერებს ხმას მომენტალურად
+        window.speechSynthesis.cancel(); 
 
         bodyNode.classList.remove('sub-flashing');
         db.ref('stream/alarm').set(false);
