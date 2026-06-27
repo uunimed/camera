@@ -1,1 +1,369 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>გლობალური უსაფრთხოების კამერა</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: #f0f4f8;
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: #334155;
+        }
+        .app-container {
+            max-width: 680px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 24px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
+            padding: 32px;
+            text-align: center;
+            position: relative;
+        }
+        h1 { 
+            font-size: 1.8rem; 
+            margin-bottom: 16px; 
+            color: #1e293b; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 10px; 
+        }
+        
+        /* რეჟიმის არჩევის ეკრანი */
+        .choice-box {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-top: 24px;
+        }
+        button {
+            padding: 16px 28px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .btn-main { background: #4a90e2; color: white; }
+        .btn-main:hover { background: #357abd; }
+        .btn-sub { background: #10b981; color: white; }
+        .btn-sub:hover { background: #059669; }
+        
+        /* უკან დაბრუნების ღილაკი */
+        .back-btn {
+            background: #64748b;
+            color: white;
+            padding: 10px 20px;
+            font-size: 0.95rem;
+            margin-top: 20px;
+        }
+        .back-btn:hover { background: #475569; }
+        
+        /* კამერის და ლაივის ზონა */
+        .camera-wrapper {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4/3;
+            margin: 20px auto;
+            border: 3px solid #4a90e2;
+            border-radius: 16px;
+            overflow: hidden;
+            background: #000;
+        }
+        #video, #liveImage { width: 100%; height: 100%; object-fit: cover; display: block; }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        
+        .status-panel {
+            background: #334155;
+            border-radius: 12px;
+            padding: 14px 24px;
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-top: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .status-panel.danger {
+            background: #ef4444;
+            animation: blink 0.5s infinite alternate;
+        }
+        @keyframes blink { from { opacity: 1; } to { opacity: 0.8; } }
+        .hidden { display: none !important; }
+        .svg-icon { display: inline-flex; align-items: center; justify-content: center; }
+    </style>
+</head>
+<body>
 
+<div class="app-container">
+    <h1>
+        <span class="svg-icon">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="#4a90e2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+        </span>
+        გლობალური დაცვის სისტემა
+    </h1>
+    
+    <div id="setupScreen">
+        <p style="color: #64748b; margin-bottom: 20px;">გთხოვთ აირჩიოთ ამ მოწყობილობის როლი სისტემაში:</p>
+        <div class="choice-box">
+            <button class="btn-main" onclick="initRole('main')">
+                <span class="svg-icon">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><circle cx="12" cy="12" r="3.2"/><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>
+                </span>
+                ძირითადი მოწყობილობა (კამერა)
+            </button>
+            <button class="btn-sub" onclick="initRole('sub')">
+                <span class="svg-icon">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M20 3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h3l-1 2v1h12v-1l-1-2h3c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 13H4V5h16v11z"/></svg>
+                </span>
+                სხვა მოწყობილობა (მონიტორინგი)
+            </button>
+        </div>
+    </div>
+
+    <div id="workScreen" class="hidden">
+        <p id="roleTitle" style="font-weight: bold; color: #4a90e2; margin-bottom: 8px;"></p>
+        
+        <div class="camera-wrapper">
+            <video id="video" autoplay muted playsinline class="hidden"></video>
+            <canvas id="overlay" class="hidden"></canvas>
+            
+            <img id="liveImage" class="hidden" alt="Live Stream...">
+        </div>
+
+        <div id="statusPanel" class="status-panel">სისტემა მზადყოფნაშია</div>
+        
+        <button class="back-btn" onclick="resetToSetup()">
+            <span class="svg-icon">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+            </span>
+            უკან დაბრუნება
+        </button>
+    </div>
+</div>
+
+<script>
+    // Firebase კონფიგურაცია
+    const firebaseConfig = {
+        apiKey: "AIzaSyBqvEqhNXaID7jkSNJDn3attnM8enLbt2c",
+        authDomain: "camera-5ea2d.firebaseapp.com",
+        projectId: "camera-5ea2d",
+        storageBucket: "camera-5ea2d.firebasestorage.app",
+        messagingSenderId: "1008116795629",
+        appId: "1:1008116795629:web:32e812624d17ff981b64e4",
+        measurementId: "G-36LNH93G1S"
+    };
+    
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let currentRole = null;
+    let modelsLoaded = false;
+    let isSpeaking = false;
+    let mainLoopTimeout = null;
+    let streamTrack = null;
+
+    const setupScreen = document.getElementById('setupScreen');
+    const workScreen = document.getElementById('workScreen');
+    const roleTitle = document.getElementById('roleTitle');
+    const video = document.getElementById('video');
+    const overlay = document.getElementById('overlay');
+    const liveImage = document.getElementById('liveImage');
+    const statusPanel = document.getElementById('statusPanel');
+
+    // SVG ხატულები სხვადასხვა სტატუსისთვის
+    const svgIcons = {
+        scan: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="animation: rotation 2s linear infinite;"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>`,
+        alert: `<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>`,
+        success: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>`
+    };
+
+    // როლის ინიციალიზაცია
+    async function initRole(role) {
+        currentRole = role;
+        setupScreen.classList.add('hidden');
+        workScreen.classList.remove('hidden');
+
+        document.body.click(); 
+
+        if (role === 'main') {
+            roleTitle.innerText = "რეჟიმი: ძირითადი მოწყობილობა (კამერა)";
+            video.classList.remove('hidden');
+            overlay.classList.remove('hidden');
+            statusPanel.innerHTML = `${svgIcons.scan} იტვირთება Face-API მოდელები...`;
+            await preloadModels();
+        } else {
+            roleTitle.innerText = "რეჟიმი: სხვა მოწყობილობა (მონიტორინგი)";
+            liveImage.classList.remove('hidden');
+            statusPanel.innerHTML = `${svgIcons.scan} მიმდინარეობს ლაივ სტრიმთან დაკავშირება...`;
+            startMonitoring();
+        }
+    }
+
+    // მოდელების ჩატვირთვა
+    async function preloadModels() {
+        if (modelsLoaded) {
+            startCamera();
+            return;
+        }
+        try {
+            await faceapi.nets.tinyFaceDetector.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models');
+            modelsLoaded = true;
+            statusPanel.innerHTML = `${svgIcons.scan} მოდელები ჩაიტვირთა. იხსნება კამერა...`;
+            startCamera();
+        } catch (e) {
+            statusPanel.innerHTML = `${svgIcons.alert} შეცდომა მოდელების ჩატვირთვისას!`;
+        }
+    }
+
+    // კამერის ჩართვა
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 400, height: 300 } });
+            video.srcObject = stream;
+            streamTrack = stream.getTracks()[0];
+            video.onloadedmetadata = () => {
+                video.play();
+                statusPanel.innerHTML = `${svgIcons.success} დაცვა აქტიურია - სახე არ ჩანს`;
+                detectAndStreamLoop();
+            };
+        } catch (err) {
+            statusPanel.innerHTML = `${svgIcons.alert} შეცდომა: კამერა ვერ ჩაირთო!`;
+        }
+    }
+
+    // კამერის და სტრიმინგის ციკლი
+    async function detectAndStreamLoop() {
+        if (currentRole !== 'main' || !modelsLoaded || video.paused) return;
+
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 320;
+        tempCanvas.height = 240;
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+        const base64Frame = tempCanvas.toDataURL('image/jpeg', 0.5);
+
+        db.ref('stream/frame').set(base64Frame);
+
+        try {
+            const detectionOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.4 });
+            const detection = await faceapi.detectSingleFace(video, detectionOptions);
+            const ctx = overlay.getContext('2d');
+
+            if (detection) {
+                const displaySize = { width: video.videoWidth, height: video.videoHeight };
+                faceapi.matchDimensions(overlay, displaySize);
+                const resizedDetections = faceapi.resizeResults(detection, displaySize);
+                ctx.clearRect(0, 0, overlay.width, overlay.height);
+                
+                const drawBox = new faceapi.draw.DrawBox(resizedDetections.box, { boxColor: '#ef4444', lineWidth: 3 });
+                drawBox.draw(overlay);
+
+                db.ref('stream/alarm').set(true);
+                statusPanel.innerHTML = `${svgIcons.alert} ობიექტი დაფიქსირდა! განგაში გაგზავნილია!`;
+                statusPanel.classList.add('danger');
+            } else {
+                ctx.clearRect(0, 0, overlay.width, overlay.height);
+                db.ref('stream/alarm').set(false);
+                statusPanel.classList.remove('danger');
+                statusPanel.innerHTML = `${svgIcons.success} დაცვა აქტიურია - სახე არ ჩანს`;
+            }
+        } catch (err) { console.error(err); }
+
+        mainLoopTimeout = setTimeout(detectAndStreamLoop, 180);
+    }
+
+    // ხმოვანი გაფრთხილება მზვერავისთვის
+    function triggerAlarmVoice() {
+        if (isSpeaking) return;
+        isSpeaking = true;
+        
+        statusPanel.innerHTML = `${svgIcons.alert} განგაში! მოძრაობა დაფიქსირდა კამერაზე!`;
+        statusPanel.classList.add('danger');
+
+        const utterance = new SpeechSynthesisUtterance("Stop, stay calm");
+        utterance.lang = "en-US";
+        
+        utterance.onend = () => {
+            setTimeout(() => { isSpeaking = false; }, 1500);
+        };
+        window.speechSynthesis.speak(utterance);
+    }
+
+    // მონიტორინგის დაწყება
+    function startMonitoring() {
+        db.ref('stream/frame').on('value', handleFrameUpdate);
+        db.ref('stream/alarm').on('value', handleAlarmUpdate);
+    }
+
+    function handleFrameUpdate(snapshot) {
+        if (currentRole !== 'sub') return;
+        const frameData = snapshot.val();
+        if (frameData) liveImage.src = frameData;
+    }
+
+    function handleAlarmUpdate(snapshot) {
+        if (currentRole !== 'sub') return;
+        const isAlarm = snapshot.val();
+        if (isAlarm === true) {
+            triggerAlarmVoice();
+        } else if (!isSpeaking) {
+            statusPanel.classList.remove('danger');
+            statusPanel.innerHTML = `${svgIcons.success} ობიექტი უსაფრთხოა - მოძრაობა არ არის`;
+        }
+    }
+
+    // უკან დაბრუნების და სისტემის გაჩერების ფუნქცია
+    function resetToSetup() {
+        // ციკლებისა და ტაიმერების გაუქმება
+        if (mainLoopTimeout) clearTimeout(mainLoopTimeout);
+        
+        // Firebase მსმენელების გამორთვა
+        db.ref('stream/frame').off('value', handleFrameUpdate);
+        db.ref('stream/alarm').off('value', handleAlarmUpdate);
+
+        // კამერის გამორთვა (თუ ჩართული იყო)
+        if (streamTrack) {
+            streamTrack.stop();
+            streamTrack = null;
+        }
+        if (video.srcObject) {
+            video.srcObject = null;
+        }
+
+        // ინტერფეისის ელემენტების საწყის პოზიციაში დაბრუნება
+        currentRole = null;
+        statusPanel.classList.remove('danger');
+        statusPanel.innerHTML = "სისტემა მზადყოფნაშია";
+        
+        video.classList.add('hidden');
+        overlay.classList.add('hidden');
+        liveImage.classList.add('hidden');
+        
+        workScreen.classList.add('hidden');
+        setupScreen.classList.remove('hidden');
+    }
+</script>
+
+</body>
+</html>
