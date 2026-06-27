@@ -105,10 +105,10 @@
             transition: background-color 0.2s;
         }
         .status-panel.identified {
-            background: #10b981; /* მწვანე როცა უბრალოდ ხედავს */
+            background: #10b981;
         }
         .status-panel.danger {
-            background: #ef4444; /* წითელი განგაშისას */
+            background: #ef4444;
             animation: blink 0.3s infinite alternate;
         }
         @keyframes blink { from { opacity: 1; } to { opacity: 0.8; } }
@@ -184,9 +184,8 @@
     let mainLoopTimeout = null;
     let streamTrack = null;
 
-    // მოძრაობის ფილტრაციის ცვლადები
     let lastBoxCenter = null; 
-    const MOTION_THRESHOLD = 35; // პიქსელების რაოდენობა, რაც უდრის კადრში ~10 სმ გადაადგილებას
+    const MOTION_THRESHOLD = 35; // კოორდინატების სხვაობა, რაც კადრში ~10 სმ-ს უდრის
 
     const setupScreen = document.getElementById('setupScreen');
     const workScreen = document.getElementById('workScreen');
@@ -249,11 +248,11 @@
         }
     }
 
-    // ძირითადი მოწყობილობის მთავარი ლოგიკა
+    // --- ძირითადი მოწყობილობის ლოგიკა ---
     async function detectAndStreamLoop() {
         if (currentRole !== 'main' || !modelsLoaded || video.paused) return;
 
-        // სტრიმინგისთვის კადრის დამზადება
+        // სტრიმინგი ბაზაში
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = 320; tempCanvas.height = 240;
         tempCanvas.getContext('2d').drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
@@ -270,52 +269,46 @@
                 const resizedDetections = faceapi.resizeResults(detection, displaySize);
                 ctx.clearRect(0, 0, overlay.width, overlay.height);
 
-                // გამოვთვალოთ სახის ჩარჩოს მიმდინარე ცენტრი (X, Y კოორდინატები)
                 const box = resizedDetections.box;
                 const currentCenter = {
                     x: box.x + box.width / 2,
                     y: box.y + box.height / 2
                 };
 
-                let boxColor = '#10b981'; // ნაგულისხმევი მწვანე ფერი (იდენტიფიკაცია)
+                let boxColor = '#10b981'; // მწვანე ჩარჩო
                 let statusMessage = `${svgIcons.success} იდენტიფიკაცია მოხდა`;
                 let panelClass = 'identified';
 
                 if (lastBoxCenter) {
-                    // მანძილის გამოთვლა ორ წერტილს შორის პითაგორას თეორემით
                     const deltaX = currentCenter.x - lastBoxCenter.x;
                     const deltaY = currentCenter.y - lastBoxCenter.y;
                     const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-                    // თუ გადაადგილება დიდია (> 10სმ ანუ 35 პიქსელი კადრში)
+                    // თუ მოძრაობა დიდია (> 10სმ)
                     if (distance > MOTION_THRESHOLD) {
                         boxColor = '#ef4444'; // იცვლება წითლად
                         statusMessage = `${svgIcons.alert} ფართო მოძრაობა! STOP! STAY CALM`;
                         panelClass = 'danger';
 
-                        // ვუგზავნით სიგნალს მეორე მოწყობილობას და ვყვირით ლოკალურად
+                        // სიგნალი ბაზაში და ლოკალური ხმა
                         db.ref('stream/alarm').set(true);
-                        triggerLocalVoice();
+                        triggerLocalMainVoice();
                     } else {
-                        // თუ მინიმალური მოძრაობაა, განგაშს ვაუქმებთ
                         db.ref('stream/alarm').set(false);
                     }
                 }
 
-                // ვხატავთ ჩარჩოს შესაბამის ფერში
                 const drawBox = new faceapi.draw.DrawBox(box, { boxColor: boxColor, lineWidth: 3 });
                 drawBox.draw(overlay);
 
-                // ინტერფეისის განახლება
                 statusPanel.className = `status-panel ${panelClass}`;
                 statusPanel.innerHTML = statusMessage;
 
-                // ვინახავთ მიმდინარე პოზიციას შემდეგ კადრთან შესადარებლად
                 lastBoxCenter = currentCenter;
             } else {
                 ctx.clearRect(0, 0, overlay.width, overlay.height);
                 db.ref('stream/alarm').set(false);
-                lastBoxCenter = null; // თუ სახე დაიკარგა, კოორდინატებს ვასუფთავებთ
+                lastBoxCenter = null;
                 statusPanel.className = 'status-panel';
                 statusPanel.innerHTML = `${svgIcons.success} დაცვა აქტიურია - სახე არ ჩანს`;
             }
@@ -324,34 +317,36 @@
         mainLoopTimeout = setTimeout(detectAndStreamLoop, 150);
     }
 
-    // ხმოვანი გაფრთხილება მთავარ მოწყობილობაზე
-    function triggerLocalVoice() {
+    // ძირითადი მოწყობილობის ხმა
+    function triggerLocalMainVoice() {
         if (isSpeaking) return;
         isSpeaking = true;
 
         const utterance = new SpeechSynthesisUtterance("Stop, stay calm");
         utterance.lang = "en-US";
-        utterance.rate = 1.0;
+        utterance.rate = 0.95; // ოდნავ მკაცრი და მტკიცე ტემპი
         
         utterance.onend = () => {
-            setTimeout(() => { isSpeaking = false; }, 2000); // დაცვა განმეორებითი გადაბმული ყვირილისგან
+            setTimeout(() => { isSpeaking = false; }, 1800);
         };
         window.speechSynthesis.speak(utterance);
     }
 
-    // მონიტორინგის მოწყობილობის ხმა
+    // --- სხვა მოწყობილობის (მონიტორინგის) ლოგიკა ---
     function triggerMonitorAlarmVoice() {
         if (isSpeaking) return;
         isSpeaking = true;
         
         statusPanel.className = "status-panel danger";
-        statusPanel.innerHTML = `${svgIcons.alert} განგაში! დაფიქსირდა ფართო მოძრაობა!`;
+        statusPanel.innerHTML = `${svgIcons.alert} განგაში! მოძრაობა დაფიქსირდა!`;
 
-        const utterance = new SpeechSynthesisUtterance("Stop, stay calm");
+        const utterance = new SpeechSynthesisUtterance("Warning");
         utterance.lang = "en-US";
+        utterance.rate = 1.1; // სწრაფი ტემპი ყურადღების მისაქცევად
+        utterance.pitch = 1.3; // მაღალი ტონი განგაშის ეფექტისთვის
         
         utterance.onend = () => {
-            setTimeout(() => { isSpeaking = false; }, 2000);
+            setTimeout(() => { isSpeaking = false; }, 1200);
         };
         window.speechSynthesis.speak(utterance);
     }
@@ -374,7 +369,7 @@
             triggerMonitorAlarmVoice();
         } else if (!isSpeaking) {
             statusPanel.className = "status-panel identified";
-            statusPanel.innerHTML = `${svgIcons.success} ობიექტი უსაფრთხოა (მცირე მოძრაობა ან უძრაობა)`;
+            statusPanel.innerHTML = `${svgIcons.success} ლაივი ჩართულია - ობიექტი უსაფრთხოა`;
         }
     }
 
