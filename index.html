@@ -3,11 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>გლობალური უსაფრთხოების კამერა (ქართული ხმით)</title>
+    <title>გლობალური უსაფრთხოების კამერა (ResponsiveVoice ქართული ხმით)</title>
     
+    <!-- TensorFlow.js და COCO-SSD -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     
+    <!-- ResponsiveVoice.js გარე ქართული ხმის ბიბლიოთეკა (ბრაუზერის შეცდომის გამოსასწორებლად) -->
+    <script src="https://code.responsivevoice.org/responsivevoice.js?key=YOUR_KEY_HERE"></script>
+    
+    <!-- Firebase SDK-ები -->
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
     
@@ -25,10 +30,8 @@
             transition: background-color 0.1s ease;
         }
         
-        /* ძირითადზე ეკრანის გაწითლება */
         body.main-alarm { background-color: #fca5a5 !important; }
 
-        /* დამხმარეზე ეკრანის ციმციმი */
         body.sub-flashing { animation: flash-screen 0.4s infinite alternate; }
         @keyframes flash-screen {
             from { background-color: #f0f4f8; }
@@ -138,6 +141,7 @@
         გლობალური დაცვის სისტემა
     </h1>
     
+    <!-- 1. საწყისი არჩევანის ეკრანი -->
     <div id="setupScreen">
         <p style="color: #64748b; margin-bottom: 20px;">გთხოვთ აირჩიოთ ამ მოწყობილობის როლი სისტემაში:</p>
         <div class="choice-box">
@@ -156,6 +160,7 @@
         </div>
     </div>
 
+    <!-- 2. სამუშაო ეკრანი -->
     <div id="workScreen" class="hidden">
         <p id="roleTitle" style="font-weight: bold; color: #4a90e2; margin-bottom: 8px;"></p>
         
@@ -226,11 +231,9 @@
         success: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>`
     };
 
+    // ხმის განბლოკვა ბიბლიოთეკისთვის
     function unlockAudioSystem() {
-        const utterance = new SpeechSynthesisUtterance("ტესტი");
-        utterance.lang = "ka-GE";
-        utterance.volume = 0; 
-        window.speechSynthesis.speak(utterance);
+        responsiveVoice.speak("სისტემა გააქტიურდა", "Georgian Female", { volume: 0 });
         audioUnlockBtn.classList.add('hidden');
     }
 
@@ -325,7 +328,7 @@
 
                         bodyNode.classList.add('main-alarm'); 
                         db.ref('stream/alarm').set(true);
-                        triggerKaMainVoice(); // ქართული ხმის გამოძახება
+                        triggerKaMainVoice(); // გარანტირებული ქართული ხმა
                     } else {
                         db.ref('stream/alarm').set(false);
                         bodyNode.classList.remove('main-alarm');
@@ -361,26 +364,23 @@
         mainLoopTimeout = setTimeout(detectAndStreamLoop, 100); 
     }
 
-    // ქართული ხმა ძირითად მოწყობილობაზე (მომენტალური რეაგირება)
+    // ძირითადი მოწყობილობის ახალი ქართული ხმა (ResponsiveVoice)
     function triggerKaMainVoice() {
-        const utterance = new SpeechSynthesisUtterance("გთხოვთ არ წამოდგეთ, დარჩით საწოლში");
-        utterance.lang = "ka-GE";
-        utterance.rate = 1.0;
-        window.speechSynthesis.speak(utterance);
+        if (responsiveVoice.isPlaying()) return; // ზედმეტად გადაბმულად რომ არ დაადოს ხმა
+        responsiveVoice.speak("გთხოვთ არ წამოდგეთ, დარჩით საწოლში", "Georgian Female", { rate: 1.0 });
     }
 
     function triggerKaVoiceAlert(text) {
         if (isSpeaking) return;
         isSpeaking = true;
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = "ka-GE"; 
-        utterance.rate = 1.0;
-        utterance.onend = () => { setTimeout(() => { isSpeaking = false; }, 1500); };
-        window.speechSynthesis.speak(utterance);
+        responsiveVoice.speak(text, "Georgian Female", {
+            rate: 1.0,
+            onend: () => { setTimeout(() => { isSpeaking = false; }, 1500); }
+        });
     }
 
 
-    // --- დამხმარე მოწყობილობა (მონიტორინგი) ---
+    // --- დამხმარე მოწყობილობა ---
     function startMonitoring() {
         db.ref('stream/frame').on('value', handleFrameUpdate);
         db.ref('stream/alarm').on('value', handleAlarmUpdate);
@@ -412,7 +412,7 @@
         }
     }
 
-    // უწყვეტი ქართული განგაში და ციმციმი მონიტორზე
+    // დამხმარე მოწყობილობის ახალი ქართული უწყვეტი ხმა (ResponsiveVoice)
     function startSubContinuousKaAlarm() {
         if (isSubAlarmActive) return;
         isSubAlarmActive = true;
@@ -421,13 +421,12 @@
         statusPanel.innerHTML = `${svgIcons.alert} განგაში! მოძრაობა დაფიქსირდა!`;
         bodyNode.classList.add('sub-flashing'); 
 
-        // განგაშის უწყვეტი ქართული ხმა ყოველ 1 წამში
+        // უწყვეტი გამეორება 1.1 წამში ერთხელ
         subAlarmInterval = setInterval(() => {
-            const utterance = new SpeechSynthesisUtterance("გაფრთხილება");
-            utterance.lang = "ka-GE";
-            utterance.rate = 1.0;
-            window.speechSynthesis.speak(utterance);
-        }, 1000); 
+            if (!responsiveVoice.isPlaying()) {
+                responsiveVoice.speak("გაფრთხილება", "Georgian Female", { rate: 1.0 });
+            }
+        }, 1100); 
     }
 
     function stopSubContinuousAlarm() {
@@ -436,7 +435,7 @@
         
         clearInterval(subAlarmInterval);
         subAlarmInterval = null;
-        window.speechSynthesis.cancel(); 
+        responsiveVoice.cancel(); // აჩერებს ResponsiveVoice-ის ხმას მომენტალურად
 
         bodyNode.classList.remove('sub-flashing');
         db.ref('stream/alarm').set(false);
@@ -458,7 +457,7 @@
     function resetToSetup() {
         if (mainLoopTimeout) clearTimeout(mainLoopTimeout);
         if (subAlarmInterval) clearInterval(subAlarmInterval);
-        window.speechSynthesis.cancel();
+        responsiveVoice.cancel();
 
         db.ref('stream/frame').off('value', handleFrameUpdate);
         db.ref('stream/alarm').off('value', handleAlarmUpdate);
