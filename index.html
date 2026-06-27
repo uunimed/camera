@@ -3,13 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>გლობალური უსაფრთხოების კამერა (COCO-SSD)</title>
+    <title>გლობალური უსაფრთხოების კამერა (ოპტიმიზებული)</title>
     
-    <!-- TensorFlow.js და COCO-SSD ადამიანის/ტანის იდენტიფიკაციისთვის -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     
-    <!-- Firebase SDK-ები -->
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
     
@@ -24,18 +22,14 @@
             align-items: center;
             padding: 20px;
             color: #334155;
-            transition: background-color 0.1s ease; /* ეკრანის მომენტალური გაწითლებისთვის */
+            transition: background-color 0.1s ease;
         }
         
         /* ძირითადზე ეკრანის გაწითლება */
-        body.main-alarm {
-            background-color: #fca5a5 !important;
-        }
+        body.main-alarm { background-color: #fca5a5 !important; }
 
-        /* დამხმარეზე ეკრანის აგრესიული ციმციმი */
-        body.sub-flashing {
-            animation: flash-screen 0.4s infinite alternate;
-        }
+        /* დამხმარეზე ეკრანის ციმციმი */
+        body.sub-flashing { animation: flash-screen 0.4s infinite alternate; }
         @keyframes flash-screen {
             from { background-color: #f0f4f8; }
             to { background-color: #ef4444; }
@@ -86,15 +80,23 @@
         .btn-sub { background: #10b981; color: white; }
         .btn-sub:hover { background: #059669; }
         
-        .back-btn {
-            background: #64748b;
-            color: white;
-            padding: 10px 20px;
-            font-size: 0.95rem;
-            margin-top: 20px;
-        }
+        .back-btn { background: #64748b; color: white; padding: 10px 20px; font-size: 0.95rem; margin-top: 20px; }
         .back-btn:hover { background: #475569; }
         
+        /* სპეციალური აქტივაციის ღილაკი ხმისთვის */
+        .activate-audio-btn {
+            background: #d97706;
+            color: white;
+            animation: pulse 1.5s infinite;
+            margin-bottom: 15px;
+            width: 100%;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); box-shadow: 0 0 15px rgba(217,119,6,0.4); }
+            100% { transform: scale(1); }
+        }
+
         .camera-wrapper {
             position: relative;
             width: 100%;
@@ -137,7 +139,6 @@
         გლობალური დაცვის სისტემა
     </h1>
     
-    <!-- 1. საწყისი არჩევანის ეკრანი -->
     <div id="setupScreen">
         <p style="color: #64748b; margin-bottom: 20px;">გთხოვთ აირჩიოთ ამ მოწყობილობის როლი სისტემაში:</p>
         <div class="choice-box">
@@ -156,9 +157,13 @@
         </div>
     </div>
 
-    <!-- 2. სამუშაო ეკრანი -->
     <div id="workScreen" class="hidden">
         <p id="roleTitle" style="font-weight: bold; color: #4a90e2; margin-bottom: 8px;"></p>
+        
+        <button id="audioUnlockBtn" class="activate-audio-btn hidden" onclick="unlockAudioSystem()">
+            ⚠️ დააწკაპუნეთ აქ ხმის სისტემის გასააქტიურებლად!
+        </button>
+        
         <p id="subHint" style="color: #ef4444; font-size: 0.9rem; font-weight: 600;" class="hidden">ხელის შეხებით განგაშის ხმა გაითიშება</p>
         
         <div class="camera-wrapper">
@@ -198,12 +203,11 @@
     let mainLoopTimeout = null;
     let streamTrack = null;
 
-    // კოორდინატების ტრეკინგი ადამიანისთვის/ტანისთვის
+    // გაუმჯობესებული მგრძნობელობა მოძრაობისთვის (მაგ. ადგომა)
     let lastPersonCenter = null; 
     let wasPersonIdentified = false;
-    const MOTION_THRESHOLD = 35; // 35 პიქსელი გადაადგილება კადრში ~10 სმ
+    const MOTION_THRESHOLD = 20; // 35-დან ჩამოვიდა 20-მდე (ბევრად მგრძნობიარეა წამოდგომაზე)
 
-    // უწყვეტი განგაშის კონტროლი (დამხმარე მოწყობილობისთვის)
     let isSubAlarmActive = false;
     let subAlarmInterval = null;
 
@@ -212,6 +216,7 @@
     const workScreen = document.getElementById('workScreen');
     const roleTitle = document.getElementById('roleTitle');
     const subHint = document.getElementById('subHint');
+    const audioUnlockBtn = document.getElementById('audioUnlockBtn');
     const video = document.getElementById('video');
     const overlay = document.getElementById('overlay');
     const liveImage = document.getElementById('liveImage');
@@ -223,7 +228,14 @@
         success: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>`
     };
 
-    // მომხმარებლის კლიკის დამუშავება განგაშის გასათიშად (დამხმარე მოწყობილობაზე)
+    // ხმის განბლოკვის ფუნქცია
+    function unlockAudioSystem() {
+        const utterance = new SpeechSynthesisUtterance("System activated");
+        utterance.volume = 0; // უხმო ტესტი ბრაუზერის ნებართვის მისაღებად
+        window.speechSynthesis.speak(utterance);
+        audioUnlockBtn.classList.add('hidden');
+    }
+
     function handleUserClick() {
         if (currentRole === 'sub' && isSubAlarmActive) {
             stopSubContinuousAlarm();
@@ -244,6 +256,7 @@
         } else {
             roleTitle.innerText = "რეჟიმი: სხვა მოწყობილობა (მონიტორინგი)";
             subHint.classList.remove('hidden');
+            audioUnlockBtn.classList.remove('hidden'); // ვაჩვენებთ ხმის აქტივაციის ღილაკს
             liveImage.classList.remove('hidden');
             statusPanel.innerHTML = `${svgIcons.scan} მიმდინარეობს ლაივ სტრიმთან დაკავშირება...`;
             startMonitoring();
@@ -252,7 +265,7 @@
 
     async function preloadCOCOModel() {
         try {
-            netModel = await cocoSsd.load({ base: 'lite_mobilenet_v2' }); // მსუბუქი და სწრაფი ვერსია რეალურ დროში მუშაობისთვის
+            netModel = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
             statusPanel.innerHTML = `${svgIcons.scan} მოდელი მზადაა. იხსნება კამერა...`;
             startCamera();
         } catch (e) {
@@ -275,22 +288,18 @@
         }
     }
 
-    // --- ძირითადი მოწყობილობა (კამერა + დეტექცია) ---
+    // --- ძირითადი მოწყობილობა ---
     async function detectAndStreamLoop() {
         if (currentRole !== 'main' || !netModel || video.paused) return;
 
-        // სტრიმინგი ბაზაში
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = 320; tempCanvas.height = 240;
         tempCanvas.getContext('2d').drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
         db.ref('stream/frame').set(tempCanvas.toDataURL('image/jpeg', 0.4));
 
         try {
-            // ობიექტების ამოცნობა
             const predictions = await netModel.detect(video);
             const ctx = overlay.getContext('2d');
-            
-            // ვფილტრავთ, რომ ბიბლიოთეკამ მხოლოდ ადამიანი/ტანი (person) აღიქვას
             const person = predictions.find(p => p.class === 'person');
 
             if (person) {
@@ -298,11 +307,9 @@
                 wasPersonIdentified = true;
 
                 const displaySize = { width: video.videoWidth, height: video.videoHeight };
-                overlay.width = displaySize.width;
-                overlay.height = displaySize.height;
+                overlay.width = displaySize.width; overlay.height = displaySize.height;
                 ctx.clearRect(0, 0, overlay.width, overlay.height);
 
-                // გამოვთვალოთ ადამიანის ცენტრი (ტანიც და თავიც ერთიანად)
                 const [bx, by, bWidth, bHeight] = person.bbox;
                 const currentCenter = { x: bx + bWidth / 2, y: by + bHeight / 2 };
 
@@ -313,24 +320,21 @@
                 if (lastPersonCenter) {
                     const distance = Math.sqrt(Math.pow(currentCenter.x - lastPersonCenter.x, 2) + Math.pow(currentCenter.y - lastPersonCenter.y, 2));
 
-                    // თუ მოძრაობა 10 სმ-ზე მეტია
+                    // თუ მოძრაობა (ადგომა/გაწევა) დაფიქსირდა
                     if (distance > MOTION_THRESHOLD) {
                         strokeColor = '#ef4444';
-                        statusMessage = `${svgIcons.alert} ფართო მოძრაობა! STOP! STAY CALM`;
+                        statusMessage = `${svgIcons.alert} მოძრაობა! STOP! STAY CALM`;
                         panelClass = 'danger';
 
-                        // ეკრანის გაწითლება
-                        bodyNode.classList.add('main-alarm');
-
+                        bodyNode.classList.add('main-alarm'); // ეკრანის გაწითლება
                         db.ref('stream/alarm').set(true);
                         triggerLocalMainVoice();
                     } else {
                         db.ref('stream/alarm').set(false);
-                        bodyNode.classList.remove('main-alarm'); // თუ მოძრაობა გაჩერდა, ფონი ბრუნდება
+                        bodyNode.classList.remove('main-alarm');
                     }
                 }
 
-                // ჩარჩოს დახატვა მთელ ტანზე
                 ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = 4;
                 ctx.strokeRect(bx, by, bWidth, bHeight);
@@ -357,11 +361,10 @@
             }
         } catch (err) { console.error(err); }
 
-        mainLoopTimeout = setTimeout(detectAndStreamLoop, 120); // სიჩქარის მომატება
+        mainLoopTimeout = setTimeout(detectAndStreamLoop, 100); // 100მს უფრო სწრაფი ანალიზისთვის
     }
 
     function triggerLocalMainVoice() {
-        // ძირითად მოწყობილობაზე ხმა ირთვება მაშინვე, ტაიმერების გარეშე
         const utterance = new SpeechSynthesisUtterance("Stop, stay calm");
         utterance.lang = "en-US";
         utterance.rate = 1.0;
@@ -391,7 +394,6 @@
         if (frameData) liveImage.src = frameData;
     }
 
-    // მოძრაობის შემჩნევა დამხმარეზე
     function handleAlarmUpdate(snapshot) {
         if (currentRole !== 'sub') return;
         if (snapshot.val() === true) {
@@ -411,16 +413,16 @@
         }
     }
 
-    // დამხმარის უწყვეტი განგაშის და ციმციმის ჩართვა
+    // უწყვეტი განგაში და წითელი ციმციმი მონიტორზე
     function startSubContinuousAlarm() {
         if (isSubAlarmActive) return;
         isSubAlarmActive = true;
 
         statusPanel.className = "status-panel danger";
         statusPanel.innerHTML = `${svgIcons.alert} განგაში! მოძრაობა დაფიქსირდა!`;
-        bodyNode.classList.add('sub-flashing'); // ჩავრთოთ წითელი ციმციმი
+        bodyNode.classList.add('sub-flashing'); // წითელი ციმციმის ჩართვა
 
-        // უწყვეტად და გადაბმულად ყვირილი, სანამ ეკრანს ხელს არ დავაჭერთ
+        // განგაშის უწყვეტი ხმა ყოველ 800 მილიწამში
         subAlarmInterval = setInterval(() => {
             const utterance = new SpeechSynthesisUtterance("Warning");
             utterance.lang = "en-US";
@@ -430,18 +432,15 @@
         }, 800); 
     }
 
-    // განგაშის ხელით გათიშვა დამხმარე მოწყობილობაზე
     function stopSubContinuousAlarm() {
         if (!isSubAlarmActive) return;
         isSubAlarmActive = false;
         
         clearInterval(subAlarmInterval);
         subAlarmInterval = null;
-        window.speechSynthesis.cancel(); // მიმდინარე ხმის გათიშვა მომენტალურად
+        window.speechSynthesis.cancel(); // აჩერებს ხმას მომენტალურად
 
-        bodyNode.classList.remove('sub-flashing'); // ციმციმის გათიშვა
-        
-        // ბაზის რეზეტი
+        bodyNode.classList.remove('sub-flashing');
         db.ref('stream/alarm').set(false);
         checkAndResetMonitorStatus();
     }
@@ -483,6 +482,7 @@
         overlay.classList.add('hidden');
         liveImage.classList.add('hidden');
         subHint.classList.add('hidden');
+        audioUnlockBtn.classList.add('hidden');
         workScreen.classList.add('hidden');
         setupScreen.classList.remove('hidden');
     }
